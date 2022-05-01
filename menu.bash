@@ -165,7 +165,7 @@ function probarFLASK(){
     echo "Iniciando venv..." 
     source /var/www/EHU_analisisdesentimiento/public_html/venv/bin/activate
 
-    echo "Abriendo Firefox en segundo plano(http://localhos:5000)..."
+    echo "Abriendo Firefox en segundo plano(http://localhost:5000)..."
     firefox http://localhost:5000 &
 
     echo "Iniciando el servicio analisisDeSentimiento([Control] + C para parar)..."
@@ -175,12 +175,222 @@ function probarFLASK(){
     deactivate
 }
 
+###########################################################
+#                  12) INSTALAR GUNICORN                  #
+###########################################################
+function instalarGUNICORN(){
+    # Instala Gunicorn en el entorno virtual
+    echo "Iniciando venv e instalando Gunicorn..."
+    source /var/www/EHU_analisisdesentimiento/public_html/venv/bin/activate
+    pip install gunicorn
+
+    echo "Desactivando el entorno virtual..."
+    deactivate
+}
+
+###########################################################
+#                  13) CONFIGURAR GUNICORN                #
+###########################################################
+function configurarGUNICORN(){
+    echo "Creando los archivos de configuración..."
+    cp src/EHU_analisisdesentimiento/public_html/wsgi.py /var/www/EHU_analisisdesentimiento/public_html
+
+    echo "Asignando usuario y grupo -> $MENU_DEFU"
+    sudo chown -R $MENU_DEFU /var/www/EHU_analisisdesentimiento/public_html
+
+    echo "Iniciando venv..." 
+    path=$(pwd)
+    cd /var/www/EHU_analisisdesentimiento/public_html
+    source venv/bin/activate
+
+    echo "Abriendo Firefox en segundo plano(http://localhost:5000)..."
+    firefox http://localhost:5000 &
+
+    echo "Comprobando si nuestra aplicación se puede añadir al servicio de Gunicorn..."
+    gunicorn --bind 0.0.0.0:5000 wsgi:app & 
+    pidsave=$! 
+    sleep 2; kill $pidsave 
+    echo "Finalizando gunicorn..."; sleep 2
+
+    echo "Desactivando el entorno virtual..."
+    deactivate
+
+    cd $path
+}
+
+###########################################################
+#                  14) PASAR PERMISOS ww-data             #
+###########################################################
+function pasarPropiedadYPermisos(){
+    sudo chown -R $MENU_PROP /var/www
+    sudo chmod -R 755 /var/www
+}
+
+###########################################################
+#                  15) CREAR SERVICIO FLASK               #
+###########################################################
+function crearServicioSystemdFlask(){
+    # Creamos el servicio
+    sudo mkdir -p /etc/systemd/system
+    sudo cp ./src/config/flask.service /etc/systemd/system/flask.service
+
+    # Recargamos el demonio systemctl para poder ejecutar el nuevo servicio
+    sudo systemctl daemon-reload
+
+    # Iniciamos el nuevo servicio
+    sudo systemctl start flask
+
+    # Establecemos que se ejecute nuestro servicio al inicio del sistema
+    sudo systemctl enable flask
+
+    # Mostramos el estado del servicio
+    systemctl status flask
+} 
+
+###########################################################
+#                  16) CONFIGURAR NGINX                   #
+###########################################################
+function configurarNginxProxyInverso(){
+    # Creamos el archivo de configuración
+    sudo mkdir -p /etc/nginx/conf.d
+    sudo cp ./src/config/flask.conf /etc/nginx/conf.d
+    
+    echo "Comprobando si hay errores en el archivo de configuración de nginx"
+    sudo nginx -t
+}
+
+###########################################################
+#                  17) CARGAR CONFIGURACIÓN NGINX         #
+###########################################################
+function cargarFicherosConfiguracionNginx(){
+    # Recargar la configuración de nginx
+    sudo systemctl reload nginx
+}
+
+###########################################################
+#                  18) REARRANCAR NGINX                   #
+###########################################################
+function rearrancarNGINX(){
+    # Rearrancamos el servicio de nginx
+    sudo systemctl restart nginx
+}
+
+###########################################################
+#                  19) TESTEAR VHOST                      #
+###########################################################
+function testearVirtualHost(){
+     firefox http://localhost:8888/
+}
+
+###########################################################
+#                  20) VER LOGS NGINX                     #
+###########################################################
+function verNginxLogs(){
+    # "Esta opción del menú llamará a la función verNginxLogs() donde se
+    # visualizarán las últimas 100 líneas del fichero
+    # '/var/log/nginx/error.log'."
+    tail -n 100 /var/log/nginx/error.log | cat -n
+    echo "Se han mostrado las 100 últimas líneas de error enumeradas"
+
+}
+
+###########################################################
+#                  21) CONTROLAR LOGS SSH                 #
+###########################################################
+function controlarIntentosConexionSSH(){
+    echo "Buscando los logs de ssh..."
+    formatted_logs=""
+    path="/var/log/"
+    # Otenemos las rutas de los ficheros de logs concatenadas y clasificadas
+    # según si están comprimidos o no
+    auth=$(ls /var/log/ | grep "auth.log" | grep -v "gz" | tr -d '\n')
+    authGZ=$(ls /var/log/ | grep "auth.log" | grep "gz" | tr -d '\n')
+
+    # Logs de archivos no comprimidos
+    IFS='a' read -r -a archivos <<< "$auth"
+    for archivo in "${archivos[@]}"
+    do
+        if [ -n "$archivo" ]
+        then
+            echo "Analizando $path"a"$archivo"
+            aux=$(cat $path"a"$archivo | grep "sshd" | grep -e "Failed password" -e "Accepted password")
+
+            # Obtener los logs del archivo en el formato deseado y concatenarlo
+            formatted_logs=$formatted_logs"\n$(formatearLOGS "$aux")"
+        fi
+    done
+
+    # Logs de archivos comprimidos
+
+    echo "LOGS: "
+    echo -e "$formatted_logs"
+}
+
+function formatearLOGS(){
+    # Para todos los parámetros exceptuando el estado y el nombre
+    # (porque cambia de posición) vamos a suponer
+    # que el string nunca cambia de formato
+    # TO:       Status: [fail] Account name: kepa Date: Apr, 25, 17:22:20
+    # FROM:     Apr 25 17:22:20 kepa-Latitude-E6440 sshd[12911]: Failed password for kepa from 127.0.0.1 port 42414 ssh2
+
+    # Iteramos sobre cada log
+    IFS=$'\n' read -d '' -r -a logs <<<"$1"
+    for log in "${logs[@]}"
+    do
+        # Buscar substring en el log
+        stat=""
+        if [[ "$log" == *"Failed"* ]]; then
+            stat="fail"
+        else
+            stat="accept"
+        fi
+
+        # Acceder a los valores del log (reverse loop)
+        name=""; sigName="False"
+        IFS=$' ' read -d '' -r -a params <<<"$log"
+        for ((i=${#params[@]}-1; i>=0; i--)); do
+            if [ "$sigName" = "True" ]; then 
+                name="${params[$i]}"
+            fi
+
+            if [ "${params[$i]}" = "from" ]; then  
+                sigName="True"
+            else
+                sigName="False"
+            fi
+        done
+
+        month="${params[0]}"
+        day="${params[1]}"
+        hour="${params[2]}"
+
+        echo "Status: [$stat] Account name: $name Date: $month, $day, $hour"
+    done
+}
+
+###########################################################
+#                  22) SALIR DEL MENU                     #
+###########################################################
+function salirMenu(){
+    echo ""
+    echo "-----------------------------------------"
+    echo "Los integrantes de este grupo somos: "
+    echo -e "\t - Adrián López"
+    echo -e "\t - Alan García"
+    echo -e "\t - Álvaro Díez-Andino"
+    echo -e "\t - Danel Alonso"
+    echo "-----------------------------------------"
+    echo ""
+    echo "Hasta la próximaaa..."
+    exit 0
+}
+
 ##################### MAIN ################################
 #Funciones auxiliares
 function imprimirMENU(){
 	#Muestra el menu
     echo ""
-    echo "-------------------------------"
+    echo "-----------------------------------------"
     echo -e "1)\t Instalar nginX"
     echo -e "2)\t Arrancar nginX"
     echo -e "3)\t Testear puertos de nginX"
@@ -192,8 +402,18 @@ function imprimirMENU(){
     echo -e "9)\t Copiar ficheros en la nueva ubicación"
     echo -e "10)\t Instalar Flask"
     echo -e "11)\t Probar Flask"
-    echo -e "23)\t fin"
-    echo "-------------------------------"
+    echo -e "12)\t Instalar Gunicorn"
+    echo -e "13)\t Configurar Gunicorn"
+    echo -e "14)\t Pasar propiedad (u:g -> $MENU_PROP)"
+    echo -e "15)\t Crear servicio Flask"
+    echo -e "16)\t Configurar nginX"
+    echo -e "17)\t Cargar configuración nginX"
+    echo -e "18)\t Rearrancar nginX"
+    echo -e "19)\t Testear virtual host (localhost:8888)"
+    echo -e "20)\t Ver los logs de nginx"
+    echo -e "21)\t Controlar logs ssh"
+    echo -e "22)\t Salir del menú"
+    echo "-----------------------------------------"
 }
 
 function instalarAPTITUDE(){
@@ -242,13 +462,21 @@ function setMENU_DEFU(){
     fi
 }
 
-function finSEGURO(){
-    echo "Saliendo de forma segura del programa..."
-    exit 0
+function setMENU_PROP(){
+    if [ -z "$MENU_PROP" ]
+    then
+        export MENU_PROP="www-data:www-data"
+        echo "Tomando como usuario y grupo propietarios -> $MENU_PROP"
+        echo "Para establecer un usuario y grupo distintos hay que modificar la variable de entorno MENU_PROP"
+    else
+        echo "Tomando como usuario y grupo propietarios -> $MENU_PROP"
+    fi
+
 }
 
 # logica principal del main
 setMENU_DEFU "$1" "$2"
+setMENU_PROP
 instalarAPTITUDE
 
 opcionmenuppal=0
@@ -269,11 +497,20 @@ do
 			9) copiarFicherosProyectoNuevaUbicacion;;
 			10) instalarFLASK;;
 			11) probarFLASK;;
-			23) finSEGURO;;
+			12) instalarGUNICORN;;
+			13) configurarGUNICORN;;
+			14) pasarPropiedadYPermisos;;
+			15) crearServicioSystemdFlask;;
+			16) configurarNginxProxyInverso;;
+			17) cargarFicherosConfiguracionNginx;;
+			18) rearrancarNGINX;;
+			19) testearVirtualHost;;
+			20) verNginxLogs;;
+			21) controlarIntentosConexionSSH;;
+			22) salirMenu;;
 			*) ;;
 	esac 
 done 
 
-echo "Fin del Programa" 
+echo "Fin del programa. Utiliza 22 para salir la próxima vez ;)" 
 exit 0 
-
