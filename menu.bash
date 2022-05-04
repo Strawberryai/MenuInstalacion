@@ -23,6 +23,15 @@ function instalarNGINX(){
 #                  2) ARRANCAR NGINX                      #
 ###########################################################
 function arrancarNGINX(){
+    apache1=$(sudo systemctl status apache2 | grep "Active: active")
+	apache2=$(sudo systemctl status apache2 | grep "Activo: activo")
+    apache3=$apache1$apache2
+
+    if [ -n "$apache3" ]
+    then
+        sudo systemctl stop apache2
+    fi
+
 	aux1=$(sudo systemctl status nginx | grep "Active: active")
 	aux2=$(sudo systemctl status nginx | grep "Activo: activo")
     aux3=$aux1$aux2
@@ -463,7 +472,8 @@ function setMENU_DEFU(){
     then
         if [ -z "$MENU_DEFU" ]
         then
-            export MENU_DEFU="alan:alan"
+            usuario=$(id -un);
+            export MENU_DEFU="$usuario:$usuario"
         fi
         
         echo "Tomando como usuario y grupo por defecto -> $MENU_DEFU"
