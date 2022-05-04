@@ -321,7 +321,7 @@ function controlarIntentosConexionSSH(){
     done
 
     # Logs de archivos comprimidos
-    IFS='a' read -r -a archivosGZ <<< "$auth"
+    IFS='a' read -r -a archivosGZ <<< "$authGZ"
     for archivoGZ in "${archivosGZ[@]}"
     do
         if [ -n "$archivoGZ" ]
