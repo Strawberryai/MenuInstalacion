@@ -322,12 +322,12 @@ function controlarIntentosConexionSSH(){
 
     # Logs de archivos comprimidos
     IFS='a' read -r -a archivosGZ <<< "$auth"
-    for archivo in "${archivos[@]}"
+    for archivoGZ in "${archivosGZ[@]}"
     do
-        if [ -n "$archivo" ]
+        if [ -n "$archivoGZ" ]
         then
-            echo "Analizando $path"a"$archivo"
-            aux=$(zcat $path"a"$archivo | grep "sshd" | grep -e "Failed password" -e "Accepted password")
+            echo "Analizando $path"a"$archivoGZ"
+            aux=$(zcat $path"a"$archivoGZ | grep "sshd" | grep -e "Failed password" -e "Accepted password")
 
             # Obtener los logs del archivo en el formato deseado y concatenarlo
             formatted_logs=$formatted_logs"\n$(formatearLOGS "$aux")"
