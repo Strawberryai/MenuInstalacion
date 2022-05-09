@@ -218,7 +218,7 @@ function configurarGUNICORN(){
     echo "Comprobando si nuestra aplicación se puede añadir al servicio de Gunicorn..."
     gunicorn --bind 0.0.0.0:5000 wsgi:app & 
     pidsave=$! 
-    sleep 2; kill $pidsave 
+    #sleep 60; kill $pidsave 
     echo "Finalizando gunicorn..."; sleep 2
 
     echo "Desactivando el entorno virtual..."
