@@ -390,7 +390,40 @@ function formatearLOGS(){
 }
 
 ###########################################################
-#                  22) SALIR DEL MENU                     #
+#                  22) OPCION EXAMEN                      #
+###########################################################
+function nuevaOpcionEXAMEN(){
+    echo "ESTA ES LA NUEVA OPCION"
+
+    # A) Desinstalar las librerías instaladas en el venv
+    echo "Desinstalando las librerías del entorno virtual"
+    source /var/www/EHU_analisisdesentimiento/public_html/venv/bin/activate
+    pip uninstall transformers[torch]
+    pip uninstall flask
+    pip uninstall gunicorn
+    deactivate
+
+    # B) Eliminar el entorno virtual de python
+    echo "Eliminando entorno virtual de python"
+    sudo rm -rf /var/www/EHU_analisisdesentimiento/public_html/venv
+
+    # C) Desinstala las aplicaciones que has instalado
+    echo "Desinstalando aplicaciones instaladas..."
+    #sudo apt remove aptitude
+    #sudo apt remove python3
+    sudo apt remove nginx
+ 	sudo apt remove net-tools
+    #sudo apt remove python3-pip
+    #sudo apt remove python3-pip python3-dev build-essential libssl-dev libffi-dev python3-setuptools
+    #sudo apt remove python3-virtualenv
+
+    # D) Elimina la aplicación web
+    echo "Eliminando la aplicación web"
+    sudo rm -rf /var/www/EHU_analisisdesentimiento
+}
+
+###########################################################
+#                  23) SALIR DEL MENU                     #
 ###########################################################
 function salirMenu(){
     echo ""
@@ -433,7 +466,8 @@ function imprimirMENU(){
     echo -e "19)\t Testear virtual host (localhost:8888)"
     echo -e "20)\t Ver los logs de nginx"
     echo -e "21)\t Controlar logs ssh"
-    echo -e "22)\t Salir del menú"
+    echo -e "22)\t Opción menu EXAMEN (desinstalación)"
+    echo -e "23)\t Salir del menú"
     echo "-----------------------------------------"
 }
 
@@ -502,7 +536,7 @@ setMENU_PROP
 instalarAPTITUDE
 
 opcionmenuppal=0
-while test $opcionmenuppal -ne 23
+while test $opcionmenuppal -ne 24
 do
     imprimirMENU
 
@@ -529,10 +563,31 @@ do
 			19) testearVirtualHost;;
 			20) verNginxLogs;;
 			21) controlarIntentosConexionSSH;;
-			22) salirMenu;;
+            22) nuevaOpcionEXAMEN;;
+			23) salirMenu;;
 			*) ;;
 	esac 
 done 
 
 echo "Fin del programa. Utiliza 22 para salir la próxima vez ;)" 
 exit 0 
+
+# cat /var/log/auth.log  > auth.log.txt
+# less auth.log.txt | tr -s ' ' '@' > auth.log.lineaporlinea.txt
+# buscar="authentication@failure"
+# 
+# echo -e "Mes\tDía\tHora\tUsuario\tComando\n"
+# echo -e "____________________________\n"
+# 
+# for linea in `less auth.log.lineaporlinea.txt | grep $buscar` 
+# do
+#    user=`echo $linea | cut -d@ -f15`
+#    comando=`echo $linea | cut -d@ -f6`
+#    dia=`echo $linea | cut -d@ -f2`
+#    mes=`echo $linea | cut -d@ -f1`
+#    hora=`echo $linea | cut -d@ -f3`
+#    echo -e "$mes\t$dia\t$hora\t$user\t$comando\n"
+# done
+# 
+# rm auth.log.txt  auth.log.lineaporlinea.txt
+
